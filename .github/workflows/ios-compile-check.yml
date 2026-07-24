@@ -1,0 +1,67 @@
+# Fork-local iOS compile gate.
+#
+# Building iOS requires the iOS SDK (inside Xcode), which only runs on Apple
+# hardware, so it cannot be validated on Linux. GitHub's macos-latest runners
+# ship Xcode and are free for public repos, so this workflow compiles the
+# pkg/application package (which includes the Objective-C app delegate and the
+# iOS deep-link bridge) for ios/arm64 against the real SDK.
+#
+# This proves compile + link correctness only. It does NOT exercise runtime
+# deep-link delivery (that needs a booted Simulator or a signed device build
+# plus a hosted apple-app-site-association file).
+#
+# It lives on the ci/ios-compile-check branch and checks out the branch under
+# test, so it stays out of the feature branches' PR diffs. Push to this branch
+# to run it, or use "Run workflow" and set the ref input.
+
+name: iOS compile check (fork)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or ref to compile for iOS
+        required: true
+        default: feat/mobile-deep-linking
+  push:
+    branches:
+      - ci/ios-compile-check
+
+jobs:
+  ios-compile:
+    name: Compile pkg/application for iOS
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout ${{ github.event.inputs.ref || 'feat/mobile-deep-linking' }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || 'feat/mobile-deep-linking' }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+          cache-dependency-path: |
+            v3/go.sum
+            go.work.sum
+
+      - name: Show Xcode and iOS SDK
+        run: |
+          xcodebuild -version
+          echo "iPhoneOS SDK: $(xcrun --sdk iphoneos --show-sdk-path)"
+
+      - name: Compile pkg/application for iOS (device, arm64)
+        working-directory: v3
+        run: |
+          set -euo pipefail
+          SDK_PATH="$(xcrun --sdk iphoneos --show-sdk-path)"
+          export GOOS=ios
+          export GOARCH=arm64
+          export CGO_ENABLED=1
+          export CGO_CFLAGS="-isysroot ${SDK_PATH} -target arm64-apple-ios15.0"
+          export CGO_LDFLAGS="-isysroot ${SDK_PATH} -target arm64-apple-ios15.0"
+          echo "Compiling pkg/application (iOS delegate + deep-link bridge)..."
+          go build ./pkg/application/
+          echo "iOS compile OK"
