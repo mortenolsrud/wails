@@ -2,17 +2,22 @@
 
 package application
 
-// mobileStub is the desktop implementation of MobileManager. Every action is a
-// no-op and every query returns its zero value, so cross-platform code that
-// calls application.Mobile.* compiles and runs off-device without effect.
-// Secure storage returns ErrSecureStorageUnsupported.
+import "errors"
+
+// mobileStub is the desktop implementation of MobileManager. Unsupported
+// fallible operations return an error (OpenURL an unavailable-platform error,
+// secure storage ErrSecureStorageUnsupported); other actions are no-ops and
+// queries return their zero value, so cross-platform code that calls
+// application.Mobile.* compiles and runs off-device without effect.
 type mobileStub struct{}
 
-// Mobile is the cross-platform mobile manager. Off-device it is a no-op stub.
+// Mobile is the cross-platform mobile manager. Off-device it is a desktop stub.
 var Mobile MobileManager = mobileStub{}
 
-func (mobileStub) Share(string)                 {}
-func (mobileStub) OpenURL(string)               {}
+func (mobileStub) Share(string) {}
+func (mobileStub) OpenURL(string) error {
+	return errors.New("mobile OpenURL is unavailable on this platform")
+}
 func (mobileStub) SetKeepAwake(bool)            {}
 func (mobileStub) SetTorch(bool)                {}
 func (mobileStub) SafeAreaJSON() string         { return "" }
