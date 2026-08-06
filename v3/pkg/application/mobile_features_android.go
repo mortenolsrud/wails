@@ -38,7 +38,16 @@ func boolToInt(b bool) int {
 func (androidManager) Share(jsonPayload string) { androidBridgeVoidString("share", jsonPayload) }
 
 // OpenURL opens the given URL in the system browser (Intent.ACTION_VIEW).
-func (androidManager) OpenURL(url string) { androidBridgeVoidString("openURL", url) }
+func (androidManager) OpenURL(url string) error {
+	result, ok := androidBridgeStringString("openURL", url)
+	if !ok {
+		return errors.New("android bridge is unavailable")
+	}
+	if result != "" {
+		return fmt.Errorf("open URL: %s", result)
+	}
+	return nil
+}
 
 // SetKeepAwake adds or clears FLAG_KEEP_SCREEN_ON on the activity window.
 func (androidManager) SetKeepAwake(enabled bool) {
