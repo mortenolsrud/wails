@@ -448,17 +448,26 @@ const char* ios_secure_set(const char* ckey, const char* cvalue) {
     NSData *valueData = [value dataUsingEncoding:NSUTF8StringEncoding];
     NSMutableDictionary *q = mfKeychainQuery(key);
 
+    // AfterFirstUnlockThisDeviceOnly, not WhenUnlocked: a sign-in token is
+    // written when a refresh completes, and that can be just after the screen
+    // locks. With WhenUnlocked the write failed there, the identity provider
+    // had already rotated the refresh token, and an app ended in the
+    // background before a retry was left with the spent one. A prewarmed
+    // launch on a locked phone could not read the item either. Still never in
+    // a backup or on another device (ThisDeviceOnly). Updating an item also
+    // moves one written under the old class to this one.
+    //
     // Try to update an existing item first.
     NSDictionary *attrs = @{
         (__bridge id)kSecValueData: valueData,
-        (__bridge id)kSecAttrAccessible: (__bridge id)kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+        (__bridge id)kSecAttrAccessible: (__bridge id)kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
     };
     OSStatus status = SecItemUpdate((__bridge CFDictionaryRef)q, (__bridge CFDictionaryRef)attrs);
 
     if (status == errSecItemNotFound) {
         // Item does not exist yet — add it.
         q[(__bridge id)kSecValueData] = valueData;
-        q[(__bridge id)kSecAttrAccessible] = (__bridge id)kSecAttrAccessibleWhenUnlockedThisDeviceOnly;
+        q[(__bridge id)kSecAttrAccessible] = (__bridge id)kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly;
         status = SecItemAdd((__bridge CFDictionaryRef)q, NULL);
     }
 
